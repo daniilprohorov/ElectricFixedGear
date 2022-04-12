@@ -1,5 +1,8 @@
 
 #include <Servo.h>
+#include <Arduino.h>
+#include <OneButton.h>
+
 int hallSensor = 7;
 unsigned long hallTime; // calc delay between hall sensor interrupt
 unsigned long nextTime;
@@ -29,16 +32,21 @@ boolean stopButtonPress = false;
 
 int outputPin = 15;
 
+boolean launch = false;
+
 Servo esc;
 void rpmCalc();
+
+OneButton stopButtonObj = OneButton(stopButtonPin, true, true);
+
+
+
 void setup() {
 
   // initialize serial communication at 9600 bits per second:
   Serial.begin(9600);
   // make the pushbutton's pin an input:
   pinMode(hallSensor, INPUT);
-  pinMode(stopButtonPin, INPUT_PULLUP);
-  //pinMode(outputPin, OUTPUT);
 
 
   attachInterrupt(4, rpmCalc, RISING);
@@ -46,6 +54,12 @@ void setup() {
   esc.attach(outputPin);
   esc.writeMicroseconds(1500);
   hallTime = millis();
+  stopButtonObj.attachDuringLongPress(stopButton);
+  stopButtonObj.attachClick(stopButton);
+  stopButtonObj.attachDoubleClick(launchF);
+  stopButtonObj.setClickTicks(500);
+  stopButtonObj.setPressTicks(300);
+
 }
 
 
@@ -54,21 +68,31 @@ void output(int val) {
     val = 255;
   }
   esc.writeMicroseconds(map(val, 0 , 255, 1000, 2000));
-  Serial.println(val);
-  //analogWrite(outputPin, val);
+  //Serial.println(val);
+  //Serial.println(val);
 }
 
-void stopButton(){
+void stopButton() {
   if (!buttonCheck) {
     buttonCheck = true;
   } else {
     stopButtonPress = true;
+    launch = false;
     rpm = 0;
     output(0);
   }
-  delay(5);
-  if (digitalRead(stopButtonPin) == 0) {
-    stopButton();
+//  delay(5);
+//  if (digitalRead(stopButtonPin) == 0) {
+//    stopButton();
+//  }
+}
+
+void launchF() {
+  if (rpm == 0) {
+    launch = true;
+    output(0);
+    delay(500);
+    output(0);
   }
 }
 
@@ -106,7 +130,7 @@ void rpmCalc() {
 
 // the loop routine runs over and over again forever:
 void loop() {
-
+  stopButtonObj.tick();
   if (buttonCheck) {
       count_150++;
       rpm_sum_150 = rpm_sum_150 + (int(rpm));
@@ -119,7 +143,19 @@ void loop() {
         rpm_sum_150 = 0;
         count_150 = 0;
       }
-      output(int(rpm) + 100);
+      if (launch) {
+        int rpm_is;
+        if (rpm >= 8) {
+          rpm_is = 1;
+        } else {
+          rpm_is = 0;
+        }
+          
+        output(int(rpm) + 100 + (rpm_is*100));   
+      } else if (!stopButtonPress){
+        output(int(rpm) + 100);        
+      }
+
       // print out the state of the button:
       //Serial.println(rpm);
       //val = digitalRead(hallSensor);
@@ -128,7 +164,8 @@ void loop() {
       delay(8);
       stopButtonPress = false;
   }
-  if (digitalRead(stopButtonPin) == 0) {
-    stopButton();
-  }
+  //if (digitalRead(stopButtonPin) == 0) {
+  //  stopButton();
+  //}
+
 }
